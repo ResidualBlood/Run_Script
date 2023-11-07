@@ -1,85 +1,69 @@
-###
- # @Author       : ResidualBlood
- # @Date         : 2022-01-14 10:33:17
- # @LastEditors  : ResidualBlood
- # @LastEditTime : 2022-01-14 11:33:28
- # @Description  : 
- # @FilePath     : /install_docker.sh
-### 
 #!/bin/bash
-Get_Dist_Name()
-{
-    if grep -Eqi "CentOS" /etc/issue || grep -Eq "CentOS" /etc/*-release; then
-        DISTRO='CentOS'
-        PM='yum'
-        if grep -Eq "CentOS Stream" /etc/*-release; then
-            isCentosStream='y'
-        fi
-    elif grep -Eqi "Alibaba" /etc/issue || grep -Eq "Alibaba Cloud Linux" /etc/*-release; then
-        DISTRO='Alibaba'
-        PM='yum'
-    elif grep -Eqi "Aliyun" /etc/issue || grep -Eq "Aliyun Linux" /etc/*-release; then
-        DISTRO='Aliyun'
-        PM='yum'
-    elif grep -Eqi "Amazon Linux" /etc/issue || grep -Eq "Amazon Linux" /etc/*-release; then
-        DISTRO='Amazon'
-        PM='yum'
-    elif grep -Eqi "Fedora" /etc/issue || grep -Eq "Fedora" /etc/*-release; then
-        DISTRO='Fedora'
-        PM='yum'
-    elif grep -Eqi "Oracle Linux" /etc/issue || grep -Eq "Oracle Linux" /etc/*-release; then
-        DISTRO='Oracle'
-        PM='yum'
-    elif grep -Eqi "Red Hat Enterprise Linux" /etc/issue || grep -Eq "Red Hat Enterprise Linux" /etc/*-release; then
-        DISTRO='RHEL'
-        PM='yum'
-    elif grep -Eqi "rockylinux" /etc/issue || grep -Eq "Rocky Linux" /etc/*-release; then
-        DISTRO='Rocky'
-        PM='yum'
-    elif grep -Eqi "almalinux" /etc/issue || grep -Eq "AlmaLinux" /etc/*-release; then
-        DISTRO='Alma'
-        PM='yum'
-    elif grep -Eqi "Debian" /etc/issue || grep -Eq "Debian" /etc/*-release; then
-        DISTRO='Debian'
-        iDISTRO='debain'
-        PM='apt'
-    elif grep -Eqi "Ubuntu" /etc/issue || grep -Eq "Ubuntu" /etc/*-release; then
-        DISTRO='Ubuntu'
-        iDISTRO='ubuntu'
-        PM='apt'
-    elif grep -Eqi "Raspbian" /etc/issue || grep -Eq "Raspbian" /etc/*-release; then
-        DISTRO='Raspbian'
-        PM='apt'
-    elif grep -Eqi "Deepin" /etc/issue || grep -Eq "Deepin" /etc/*-release; then
-        DISTRO='Deepin'
-        PM='apt'
-    elif grep -Eqi "Mint" /etc/issue || grep -Eq "Mint" /etc/*-release; then
-        DISTRO='Mint'
-        PM='apt'
-    elif grep -Eqi "Kali" /etc/issue || grep -Eq "Kali" /etc/*-release; then
-        DISTRO='Kali'
-        PM='apt'
-    fi
-        DISTRO='unknow'
+
+# Function to install Docker on Ubuntu and derivatives
+install_docker_ubuntu() {
+  sudo apt-get update
+  sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+  sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+  sudo apt-get update
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 }
-Get_Dist_Name
-echo ${iDISTRO}
-"${PM}" update
-"${PM}" install sudo
-sudo "${PM}" upgrade -y
-sudo "${PM}" install wget nano curl git -y
-sudo "${PM}" install \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    software-properties-common\
-    gnupg \
-    lsb-release -y
-curl -fsSL https://download.docker.com/linux/${iDISTRO}/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-sudo echo \
-  "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/${iDISTRO} \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo "${PM}" update
-sudo "${PM}" install docker-ce docker-ce-cli containerd.io -y
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+
+# Function to install Docker on CentOS and derivatives
+install_docker_centos() {
+  sudo yum check-update
+  curl -fsSL https://get.docker.com/ | sh
+}
+
+# Function to install Docker on Fedora
+install_docker_fedora() {
+  sudo dnf -y install dnf-plugins-core
+  sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+  sudo dnf -y install docker-ce docker-ce-cli containerd.io
+}
+
+# Function to install Docker on Debian
+install_docker_debian() {
+  sudo apt-get update
+  sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+  curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo apt-get update
+  sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+}
+
+# Detect the OS
+OS_ID=$(grep -oP '(?<=^ID=).+' /etc/os-release | tr -d '"')
+
+# Install Docker depending on the OS
+case $OS_ID in
+  ubuntu)
+    install_docker_ubuntu
+    ;;
+  debian)
+    install_docker_debian
+    ;;
+  centos)
+    install_docker_centos
+    ;;
+  fedora)
+    install_docker_fedora
+    ;;
+  *)
+    echo "Unsupported operating system: $OS_ID"
+    exit 1
+    ;;
+esac
+
+# Enable and start Docker service
+sudo systemctl enable --now docker
+
+# Add the current user to the Docker group
+sudo usermod -aG docker $USER
+
+# Output Docker version information
+docker version
+
+# Prompt for a reboot
+echo "Please reboot your system for the Docker installation to complete."
