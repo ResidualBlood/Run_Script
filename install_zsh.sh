@@ -1,7 +1,7 @@
 #!/bin/bash
 apt update
 apt upgrade -y
-apt install sudo wget git nano zsh -y
+apt install sudo wget git nano zsh lnav -y
 
 # INSTALL OH-MY-ZSH
 wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh
