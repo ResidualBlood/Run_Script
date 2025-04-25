@@ -10,7 +10,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
     brew update
-    brew install sudo wget git nano zsh lnav font-fira-code
+    brew install sudo wget git nano zsh lnav font-fira-code font-fira-code-nerd-font
 else
     # Debian: 使用 apt 安装必要软件
     echo "Installing dependencies for Debian..."
