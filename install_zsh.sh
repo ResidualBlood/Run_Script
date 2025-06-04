@@ -72,7 +72,7 @@ alias sl="screen -ls"
 alias sr="screen -R"
 alias ss="screen -S"
 alias docner="docker container"
-alias docose="docker-compose"
+alias docose="docker compose"
 
 # 按两下 Esc 键往上条命令或者当前正在输入的命令前加上 "sudo"
 sudo-command-line() {
