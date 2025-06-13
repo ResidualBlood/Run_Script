@@ -68,6 +68,9 @@ cd ~
 # 添加自定义配置到 .zshrc
 cat << EOF >> .zshrc
 
+# 设置语言防止乱码
+export LANG=en_US.UTF-8
+
 # 设置默认编辑器为 nano
 export EDITOR=nano
 
@@ -91,6 +94,9 @@ COMPLETION_WAITING_DOTS="true"
 DISABLE_UNTRACKED_FILES_DIRTY="true"
 zstyle ':omz:update' mode auto
 # zstyle ':omz:update' frequency 13
+
+# 显示命令历史带时间戳
+HIST_STAMPS="yyyy-mm-dd"
 
 # 启用历史子串搜索（上下箭头）
 bindkey '^[[A' history-substring-search-up
