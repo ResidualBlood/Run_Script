@@ -10,13 +10,13 @@ if [[ "$(uname)" == "Darwin" ]]; then
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
     brew update
-    brew install sudo wget git nano zsh lnav font-fira-code font-fira-code-nerd-font
+    brew install sudo wget git nano zsh lnav font-fira-code font-fira-code-nerd-font tree
 else
     # Debian: 使用 apt 安装必要软件
     echo "Installing dependencies for Debian..."
     apt update
     apt upgrade -y
-    apt install sudo wget git nano zsh lnav -y
+    apt install sudo wget git nano zsh lnav tree-y
 
     # 设置 ulimit 限制（仅限 Debian 系统）
     echo "Setting ulimit restrictions for Debian..."
@@ -87,6 +87,12 @@ alias l="ls -CF"
 alias grep="grep --color=auto"
 alias df="df -h"
 alias h="history"
+
+# 显示当前目录下的子目录（不递归太深）
+alias tdirs='tree -L 1 -d'
+
+# 显示当前目录及子目录下的文件/目录总数统计
+alias tstat='tree | tail -n 1'
 
 # 推荐启用项
 ENABLE_CORRECTION="true"
