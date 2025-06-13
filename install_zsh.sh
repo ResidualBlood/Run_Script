@@ -57,6 +57,10 @@ git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-m
 echo "Installing zsh-syntax-highlighting..."
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 
+# 安装 history-substring-search 插件
+echo "Installing history-substring-search..."
+git clone https://github.com/zsh-users/zsh-history-substring-search ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/history-substring-search
+
 # 配置 .zshrc 文件
 echo "Configuring .zshrc..."
 cd ~
@@ -73,6 +77,24 @@ alias sr="screen -R"
 alias ss="screen -S"
 alias docner="docker container"
 alias docose="docker compose"
+alias dps="docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+alias ll="ls -alFh"
+alias la="ls -A"
+alias l="ls -CF"
+alias grep="grep --color=auto"
+alias df="df -h"
+alias h="history"
+
+# 推荐启用项
+ENABLE_CORRECTION="true"
+COMPLETION_WAITING_DOTS="true"
+DISABLE_UNTRACKED_FILES_DIRTY="true"
+zstyle ':omz:update' mode auto
+# zstyle ':omz:update' frequency 13
+
+# 启用历史子串搜索（上下箭头）
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
 
 # 按两下 Esc 键往上条命令或者当前正在输入的命令前加上 "sudo"
 sudo-command-line() {
@@ -99,7 +121,7 @@ sed -i '' 's/robbyrussell/agnoster/' ~/.zshrc
 
 # 配置插件
 echo "Configuring plugins..."
-sed -i '' 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' ~/.zshrc
+sed -i '' 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting history-substring-search common-aliases)/' ~/.zshrc
 
 # 配置 zsh-autosuggestions 插件颜色
 echo "Configuring zsh-autosuggestions color..."
