@@ -1,136 +1,126 @@
 #!/bin/bash
 
-# --- Docker 安装脚本 (已修正和改进) ---
+# 设置报错即退出 (可选，但在安装脚本中比较安全)
+# set -e
 
-# 函数: 安装 Docker (Ubuntu)
-# 修正: 使用现代的 GPG 密钥环方法 (与 Debian 相同)
-# 修正: 添加 docker-compose-plugin
-install_docker_ubuntu() {
-    echo "Starting Docker installation for Ubuntu..."
-    sudo apt-get update
-    sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-    
-    # 添加 Docker 的官方 GPG 密钥环
-    sudo mkdir -p /usr/share/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    
-    # 设置稳定版仓库
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-      
-    sudo apt-get update
-    # 安装 Docker 引擎, CLI, containerd, 以及 Compose V2 插件
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-}
+# --- 颜色变量 ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-# 函数: 安装 Docker (CentOS)
-# 修正: 从 'get.docker.com' 脚本改为使用官方 yum 仓库
-# 修正: 添加 docker-compose-plugin
-install_docker_centos() {
-    echo "Starting Docker installation for CentOS..."
-    sudo yum install -y yum-utils
-    
-    # 设置稳定版仓库
-    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    
-    sudo yum check-update
-    # 安装 Docker 引擎, CLI, containerd, 以及 Compose V2 插件
-    sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-}
+info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# 函数: 安装 Docker (Fedora)
-# 修正: 添加 docker-compose-plugin
-install_docker_fedora() {
-    echo "Starting Docker installation for Fedora..."
-    sudo dnf -y install dnf-plugins-core
-    
-    # 设置稳定版仓库
-    sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
-    
-    # 安装 Docker 引擎, CLI, containerd, 以及 Compose V2 插件
-    sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-}
-
-# 函数: 安装 Docker (Debian)
-# 修正: 添加 docker-compose-plugin
-install_docker_debian() {
-    echo "Starting Docker installation for Debian..."
-    sudo apt-get update
-    sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-    
-    # 添加 Docker 的官方 GPG 密钥环
-    sudo mkdir -p /usr/share/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    
-    # 设置稳定版仓库
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
-      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-      
-    sudo apt-get update
-    # 安装 Docker 引擎, CLI, containerd, 以及 Compose V2 插件
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-}
-
-# --- 脚本主逻辑 ---
-
-# 检测操作系统
-if [ -f /etc/os-release ]; then
-    OS_ID=$(grep -oP '(?<=^ID=).+' /etc/os-release | tr -d '"')
+# --- 检查是否为 Root 用户 ---
+if [ "$(id -u)" != "0" ]; then
+   warn "此脚本需要 root 权限运行，正在尝试使用 sudo..."
+   SUDO="sudo"
 else
-    echo "无法检测到 /etc/os-release 文件。"
+   SUDO=""
+fi
+
+# --- 1. 检测操作系统 ---
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    OS=$ID
+    VERSION_CODENAME=${VERSION_CODENAME:-$VERSION_ID} # Fallback for some distros
+else
+    error "无法检测到 /etc/os-release 文件，脚本无法继续。"
     exit 1
 fi
 
-echo "Detected OS: $OS_ID"
+info "Detected OS: $OS ($VERSION_CODENAME)"
 
-# 根据操作系统执行相应的安装函数
-case $OS_ID in
-    ubuntu)
-        install_docker_ubuntu
+# --- 2. 通用安装函数 (Debian/Ubuntu) ---
+install_debian_based() {
+    info "Updating package index..."
+    $SUDO apt-get update -qq
+
+    info "Installing dependencies..."
+    $SUDO apt-get install -y ca-certificates curl gnupg
+
+    info "Setting up Docker GPG key..."
+    # 建立标准的 keyrings 目录
+    $SUDO install -m 0755 -d /etc/apt/keyrings
+    # 下载 key，如果文件存在则覆盖
+    curl -fsSL "https://download.docker.com/linux/$OS/gpg" | $SUDO gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+    $SUDO chmod a+r /etc/apt/keyrings/docker.gpg
+
+    info "Setting up the repository..."
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
+      $(lsb_release -cs 2>/dev/null || echo "$VERSION_CODENAME") stable" | $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    info "Installing Docker Engine and Compose Plugin..."
+    $SUDO apt-get update -qq
+    $SUDO apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+}
+
+# --- 3. 通用安装函数 (CentOS/Fedora/RHEL) ---
+install_rhel_based() {
+    local repo_url=""
+    
+    if [[ "$OS" == "fedora" ]]; then
+        repo_url="https://download.docker.com/linux/fedora/docker-ce.repo"
+        pkg_manager="dnf"
+        $SUDO dnf -y install dnf-plugins-core
+    else 
+        # CentOS / RHEL / Rocky / Alma
+        repo_url="https://download.docker.com/linux/centos/docker-ce.repo"
+        pkg_manager="yum"
+        $SUDO yum install -y yum-utils
+    fi
+
+    info "Adding Docker repository..."
+    $SUDO $pkg_manager config-manager --add-repo "$repo_url"
+
+    info "Installing Docker Engine and Compose Plugin..."
+    $SUDO $pkg_manager install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+}
+
+# --- 4. 执行安装逻辑 ---
+case "$OS" in
+    ubuntu|debian|raspbian|kali)
+        install_debian_based
         ;;
-    debian)
-        install_docker_debian
-        ;;
-    centos)
-        install_docker_centos
-        ;;
-    fedora)
-        install_docker_fedora
+    centos|fedora|rhel|rocky|almalinux)
+        install_rhel_based
         ;;
     *)
-        echo "不支持的操作系统: $OS_ID"
+        error "不支持的操作系统: $OS"
         exit 1
         ;;
 esac
 
-# --- 后续配置步骤 ---
+# --- 5. 服务配置 ---
+info "Starting Docker service..."
+$SUDO systemctl enable --now docker
 
-echo "启动并启用 Docker 服务..."
-# 启动并设置开机自启
-sudo systemctl enable --now docker
-
-echo "使用 sudo 验证 Docker 守护进程是否正在运行..."
-# 修正: 使用 'sudo docker version' 来验证守护进程，因为当前用户权限尚未生效
-if sudo docker version; then
-    echo "Docker 守护进程已成功启动。"
+# --- 6. 用户组配置 ---
+if getent group docker > /dev/null 2>&1; then
+    CURRENT_USER=${SUDO_USER:-$USER}
+    info "Adding user '$CURRENT_USER' to docker group..."
+    $SUDO usermod -aG docker "$CURRENT_USER"
 else
-    echo "Docker 守护进程启动失败，请检查。"
+    warn "Docker group does not exist (Installation failed?)"
+fi
+
+# --- 7. 验证与结束 ---
+echo
+echo "--------------------------------------------------------------------"
+if $SUDO docker version > /dev/null 2>&1; then
+    info "Docker Installation Successful!"
+    echo "   - Docker Version:  $($SUDO docker --version | cut -d ' ' -f3 | tr -d ',')"
+    echo "   - Compose Version: $($SUDO docker compose version | cut -d ' ' -f4)"
+else
+    error "Docker check failed. Please check logs."
     exit 1
 fi
 
-echo "将当前用户 $USER 添加到 'docker' 组..."
-# 将当前用户添加到 docker 组，以便无需 sudo 即可运行 docker
-sudo usermod -aG docker $USER
-
 echo
-echo "--------------------------------------------------------------------"
-echo "✅ Docker 和 Docker Compose (v2 插件) 安装完成！"
-echo
-echo "‼️ 重要提示:"
-echo "您必须 **完全退出登录** 并 **重新登录** (或重启电脑),"
-echo "新的 'docker' 组权限才会生效。"
-echo
-echo "重新登录后, 您就可以直接运行 'docker ps' (无需 sudo) 来验证。"
+warn "‼️  IMPORTANT:"
+echo "   You must [Log Out] and [Log Back In] for group changes to take effect."
+echo "   Or run: 'newgrp docker' to apply changes temporarily."
 echo "--------------------------------------------------------------------"
