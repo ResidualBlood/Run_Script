@@ -185,4 +185,4 @@ EOF
 fi
 
 echo "🎉 Installation complete!"
-echo "Please restart your terminal or run: exec zsh"
+echo "Please restart your terminal or run: chsh -s $(which zsh)"
