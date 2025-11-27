@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# --- 辅助函数：跨平台 SED ---
-# 使用函数代替变量，避免 shell 分词问题
+# ==========================================
+# 0. 基础辅助函数
+# ==========================================
+
+# 跨平台 sed
 run_sed() {
     if [[ "$(uname)" == "Darwin" ]]; then
         sed -i '' "$@"
@@ -10,8 +13,7 @@ run_sed() {
     fi
 }
 
-# --- 辅助函数：判断是否需要 sudo ---
-# 如果是 root 用户，则不需要 sudo
+# 权限检查
 ensure_sudo() {
     if [ "$(id -u)" -eq 0 ]; then
         "$@"
@@ -20,96 +22,131 @@ ensure_sudo() {
     fi
 }
 
-# --- 操作系统判断与依赖安装 ---
+# ==========================================
+# 1. 自动检测网络环境 (关键修改)
+# ==========================================
+echo "🔍 Detecting network environment..."
+
+# 尝试连接 Google 来判断是否在墙外，超时时间 3秒
+if curl -I -m 3 -s https://www.google.com >/dev/null; then
+    IS_CN=false
+    echo "🌍 Global network detected. Using GitHub."
+    
+    # GitHub 源地址
+    OMZ_INSTALLER="https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+    GIT_HOST="https://github.com"
+else
+    IS_CN=true
+    echo "🇨🇳 China network detected. Using Gitee Mirrors."
+    
+    # Gitee 镜像源地址
+    OMZ_INSTALLER="https://gitee.com/mirrors/oh-my-zsh/raw/master/tools/install.sh"
+    GIT_HOST="https://gitee.com"
+fi
+
+# ==========================================
+# 2. 依赖安装与语言修复 (Locale Fix)
+# ==========================================
 if [[ "$(uname)" == "Darwin" ]]; then
     echo "🔵 Detect macOS..."
-    
     if ! command -v brew &>/dev/null; then
         echo "Homebrew not found. Installing..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
-    
     brew update
-    
     echo "Installing packages..."
     brew install wget git nano zsh lnav tree
-    
     echo "Installing fonts..."
-    # 尝试安装字体，忽略错误（防止已安装报错）
     brew install --cask font-fira-code font-fira-code-nerd-font 2>/dev/null || echo "Fonts might be already installed."
 
 else
-    # 假定为 Debian/Ubuntu 系列
     echo "🟢 Detect Linux (Debian/Ubuntu)..."
     
     ensure_sudo apt update
-    # 移除 -y 的 upgrade，避免耗时过长，视需求而定
-    # ensure_sudo apt upgrade -y 
-    ensure_sudo apt install -y wget git nano zsh lnav tree curl
+    # 增加 locales 和 fonts-powerline 防止乱码
+    ensure_sudo apt install -y wget git nano zsh lnav tree curl locales fonts-powerline
+
+    echo "🔧 Fixing Locale (Solving 'character not in range' error)..."
+    if [ -f /etc/locale.gen ]; then
+        ensure_sudo sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+        ensure_sudo sed -i 's/# zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
+        ensure_sudo locale-gen
+        ensure_sudo update-locale LANG=en_US.UTF-8
+        
+        # 临时生效，防止脚本后续步骤报错
+        export LANG=en_US.UTF-8
+        export LC_ALL=en_US.UTF-8
+    fi
 fi
 
-# --- Oh My Zsh 安装 ---
+# ==========================================
+# 3. Oh My Zsh 安装
+# ==========================================
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
-    echo "Installing Oh My Zsh..."
-    # 移除最后的 "" 参数，--unattended 足够了
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    echo "🚀 Installing Oh My Zsh..."
+    sh -c "$(curl -fsSL $OMZ_INSTALLER)" "" --unattended
 else
     echo "✅ Oh My Zsh already installed."
 fi
 
-# --- 插件安装 (增加存在性检查) ---
-echo "Installing zsh plugins..."
+# ==========================================
+# 4. 插件安装 (根据地区自动选择源)
+# ==========================================
+echo "📦 Installing zsh plugins..."
 ZSH_CUSTOM=${ZSH_CUSTOM:-~/.oh-my-zsh/custom}
 
 install_plugin() {
-    local repo_url=$1
-    local plugin_name=$(basename $repo_url .git)
+    local plugin_path=$1  # 例如: zsh-users/zsh-autosuggestions.git
+    local plugin_name=$2
     local target_dir="${ZSH_CUSTOM}/plugins/${plugin_name}"
     
+    # 拼接最终 URL
+    local full_url="${GIT_HOST}/${plugin_path}"
+
     if [ ! -d "$target_dir" ]; then
-        echo "Cloning ${plugin_name}..."
-        git clone "${repo_url}" "${target_dir}"
+        echo "   -> Cloning ${plugin_name} from ${GIT_HOST}..."
+        git clone "${full_url}" "${target_dir}"
     else
-        echo "✅ Plugin ${plugin_name} already exists. Skipping."
-        # 可选：如果存在则更新
-        # git -C "${target_dir}" pull
+        echo "   -> ✅ Plugin ${plugin_name} already exists."
     fi
 }
 
-install_plugin "https://github.com/zsh-users/zsh-autosuggestions"
-install_plugin "https://github.com/zsh-users/zsh-syntax-highlighting.git"
-install_plugin "https://github.com/zsh-users/zsh-history-substring-search"
+# 只需要传入路径后缀，前缀由脚本自动拼接
+install_plugin "zsh-users/zsh-autosuggestions.git" "zsh-autosuggestions"
+install_plugin "zsh-users/zsh-syntax-highlighting.git" "zsh-syntax-highlighting"
+install_plugin "zsh-users/zsh-history-substring-search.git" "zsh-history-substring-search"
 
-# --- 配置 .zshrc ---
-echo "Configuring .zshrc..."
+# ==========================================
+# 5. 配置 .zshrc
+# ==========================================
+echo "⚙️  Configuring .zshrc..."
 ZSHRC_FILE="$HOME/.zshrc"
 
-# 1. 修改主题 (使用 run_sed 函数)
-echo "Setting theme to agnoster..."
-# 先判断是否已经是 agnoster，避免重复修改
+# 修改主题
 if ! grep -q 'ZSH_THEME="agnoster"' "$ZSHRC_FILE"; then
     run_sed 's/^ZSH_THEME="robbyrussell"$/ZSH_THEME="agnoster"/' "$ZSHRC_FILE"
 fi
 
-# 2. 配置插件
-echo "Enabling plugins..."
-# 只有当 plugins=(git) 存在时才替换，防止重复追加
+# 启用插件
 if grep -q '^plugins=(git)$' "$ZSHRC_FILE"; then
     run_sed 's/^plugins=(git)$/plugins=(git zsh-autosuggestions zsh-syntax-highlighting history-substring-search common-aliases)/' "$ZSHRC_FILE"
 fi
 
-# --- 追加自定义配置 ---
-# 使用标记行来防止重复追加内容
+# ==========================================
+# 6. 追加自定义配置
+# ==========================================
 START_MARKER="# --- CUSTOM CONFIG START ---"
 if grep -q "$START_MARKER" "$ZSHRC_FILE"; then
-    echo "✅ Custom configurations already exist in .zshrc."
+    echo "✅ Custom configurations already exist."
 else
-    echo "Appending custom configurations..."
+    echo "📝 Appending custom configurations..."
     cat << 'EOF' >> "$ZSHRC_FILE"
 
 # --- CUSTOM CONFIG START ---
 
+# Locale fix for Zsh theme
 export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 export EDITOR=nano
 
 # zsh-autosuggestions color
@@ -137,14 +174,14 @@ COMPLETION_WAITING_DOTS="true"
 DISABLE_UNTRACKED_FILES_DIRTY="true"
 zstyle ':omz:update' mode auto
 
-# History Settings
+# History
 HIST_STAMPS="yyyy-mm-dd"
 
-# Key bindings
+# Key bindings for history search
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
 
-# Intelligent Sudo (Esc+Esc)
+# Intelligent Sudo (Press Esc twice)
 sudo-command-line() {
     [[ -z $BUFFER ]] && zle up-history
     if [[ $BUFFER == sudo\ * ]]; then
@@ -166,10 +203,10 @@ bindkey "\e\e" sudo-command-line
 EOF
 fi
 
-# --- Debian ulimit 设置 ---
+# --- Linux ulimit settings ---
 if [[ "$(uname)" != "Darwin" ]]; then
     if ! grep -q "ulimit -u" "$ZSHRC_FILE"; then
-        echo "Setting ulimit restrictions for Debian..."
+        echo "🔧 Setting ulimit restrictions for Linux..."
         cat << EOF >> "$ZSHRC_FILE"
 
 # ulimit settings
@@ -185,4 +222,5 @@ EOF
 fi
 
 echo "🎉 Installation complete!"
-echo "Please restart your terminal or run: chsh -s $(which zsh)"
+echo "👉 Run this command to switch shell: chsh -s \$(which zsh)"
+echo "👉 Then log out and log back in."
